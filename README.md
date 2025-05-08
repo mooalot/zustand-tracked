@@ -1,10 +1,10 @@
 # zustand-tracked
 
-A small library that allows all your selectors to be tracked, optimizing computations and rerenders.
+A small library that allows all your zustand store selectors to be tracked, optimizing computations and rerenders.
 
 ## Why?
 
-Updating data in your store triggers all selectors to recompute, which can be costly with many or complex selectors. This library optimizes performance by tracking dependencies and only recomputing affected selectors, making it ideal for large applications.
+Updating any data in your store triggers all selectors to recompute, which can be costly with many or complex selectors. This library optimizes performance by tracking dependencies and only recomputing affected selectors.
 
 ## Installation
 
@@ -67,7 +67,7 @@ Keep in mind that using `useCallback` is not always necessary, but it can help w
 
 ## More Examples
 
-See more examples on [Github](https://github.com/mooalot/zustand-tracked/tree/main/examples/global)
+See more examples on [Github](https://github.com/mooalot/zustand-tracked/tree/main/examples)
 
 ## License
 
