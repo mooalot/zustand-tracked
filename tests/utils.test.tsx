@@ -1,12 +1,13 @@
 import { act, render, screen } from '@testing-library/react';
-import React from 'react';
+import { isEqual } from 'lodash-es';
+import React, { useCallback } from 'react';
 import { describe, expect, it } from 'vitest';
 import { create, createStore } from 'zustand';
 import {
-  createTrackedComputer,
   createTracked,
-  useTrackedStore,
+  createTrackedComputer,
   createTrackedWithEqualityFn,
+  useTrackedStore,
   useTrackedStoreWithEqualityFn,
 } from '../src/utils';
 
@@ -72,10 +73,12 @@ describe('createTracked', () => {
     const useStore = setupStore();
     let selectorRuns = 0;
     function Comp() {
-      const val = useStore((s) => {
-        selectorRuns++;
-        return s.count;
-      });
+      const val = useStore(
+        useCallback((s) => {
+          selectorRuns++;
+          return s.count;
+        }, [])
+      );
       return <div>{val}</div>;
     }
     render(<Comp />);
@@ -83,7 +86,7 @@ describe('createTracked', () => {
     act(() => useStore.getState().setText('e'));
     expect(selectorRuns).toBe(1);
     act(() => useStore.getState().increment());
-    expect(selectorRuns).toBe(3); // 1 for initial, 1 for the subscription, 1 for the rerender
+    expect(selectorRuns).toBe(2);
   });
 
   it('should still get the correct value if an external state change happens', () => {
@@ -217,19 +220,44 @@ describe('useTrackedStore', () => {
   it('selector only runs when accessed value changes', () => {
     const store = setupStore();
     let selectorRuns = 0;
+    let selectorRuns2 = 0;
+
     function Comp() {
-      const val = useTrackedStore(store, (s) => {
-        selectorRuns++;
-        return s.count;
-      });
+      const val = useTrackedStore(
+        store,
+        useCallback((s) => {
+          selectorRuns++;
+          return s.count;
+        }, [])
+      );
       return <div>{val}</div>;
     }
-    render(<Comp />);
+    function Comp2() {
+      const val = useTrackedStore(
+        store,
+        useCallback((s) => {
+          selectorRuns2++;
+          return s.text;
+        }, [])
+      );
+      return <div>{val}</div>;
+    }
+    function Parent() {
+      return (
+        <>
+          <Comp />
+          <Comp2 />
+        </>
+      );
+    }
+    render(<Parent />);
     expect(selectorRuns).toBe(1);
+    expect(selectorRuns2).toBe(1);
     act(() => store.getState().setText('e'));
     expect(selectorRuns).toBe(1);
+    expect(selectorRuns2).toBe(2); // 1 for initial, 1 for the subscription, 1 for the rerender
     act(() => store.getState().increment());
-    expect(selectorRuns).toBe(3); // 1 for initial, 1 for the subscription, 1 for the rerender
+    expect(selectorRuns).toBe(2);
   });
 
   it('should still get the correct value if an external state change happens', () => {
@@ -322,10 +350,12 @@ describe('createTrackedWithEqualityFn', () => {
     const useStore = setupStore();
     let selectorRuns = 0;
     function Comp() {
-      const val = useStore((s) => {
-        selectorRuns++;
-        return s.count;
-      });
+      const val = useStore(
+        useCallback((s) => {
+          selectorRuns++;
+          return s.count;
+        }, [])
+      );
       return <div>{val}</div>;
     }
     render(<Comp />);
@@ -333,7 +363,7 @@ describe('createTrackedWithEqualityFn', () => {
     act(() => useStore.getState().setText('e'));
     expect(selectorRuns).toBe(1);
     act(() => useStore.getState().increment());
-    expect(selectorRuns).toBe(3); // 1 for initial, 1 for the subscription, 1 for the rerender
+    expect(selectorRuns).toBe(2);
   });
   it('should still get the correct value if an external state change happens', () => {
     const useStore = setupStore();
@@ -381,6 +411,8 @@ describe('useTrackedStoreWithEqualityFn', () => {
     text: string;
     increment: () => void;
     setText: (t: string) => void;
+    object: { a: number; b: number };
+    setObject: (o: { a: number; b: number }) => void;
   };
 
   function setupStore() {
@@ -389,6 +421,8 @@ describe('useTrackedStoreWithEqualityFn', () => {
       text: 'a',
       increment: () => set((s) => ({ count: s.count + 1 })),
       setText: (t) => set({ text: t }),
+      object: { a: 1, b: 2 },
+      setObject: (o) => set({ object: o }),
     }));
   }
 
@@ -435,10 +469,13 @@ describe('useTrackedStoreWithEqualityFn', () => {
     const store = setupStore();
     let selectorRuns = 0;
     function Comp() {
-      const val = useTrackedStoreWithEqualityFn(store, (s) => {
-        selectorRuns++;
-        return s.count;
-      });
+      const val = useTrackedStoreWithEqualityFn(
+        store,
+        useCallback((s) => {
+          selectorRuns++;
+          return s.count;
+        }, [])
+      );
       return <div>{val}</div>;
     }
     render(<Comp />);
@@ -446,7 +483,7 @@ describe('useTrackedStoreWithEqualityFn', () => {
     act(() => store.getState().setText('e'));
     expect(selectorRuns).toBe(1);
     act(() => store.getState().increment());
-    expect(selectorRuns).toBe(3); // 1 for initial, 1 for the subscription, 1 for the rerender
+    expect(selectorRuns).toBe(2);
   });
   it('should still get the correct value if an external state change happens', () => {
     const store = setupStore();
@@ -481,11 +518,17 @@ describe('useTrackedStoreWithEqualityFn', () => {
     let renderCount = 0;
     function Counter() {
       renderCount++;
-      const count = useTrackedStoreWithEqualityFn(store, (s) => s.count);
-      return <div data-testid="count">{count}</div>;
+      const object = useTrackedStoreWithEqualityFn(
+        store,
+        (s) => s.object,
+        isEqual
+      );
+      return <div data-testid="count">{object.a + object.b}</div>;
     }
     render(<Counter />);
-    act(() => store.getState().setText('c'));
+    act(() => store.getState().setObject({ a: 1, b: 2 }));
     expect(renderCount).toBe(1); // did not re-render
+    act(() => store.getState().setObject({ a: 1, b: 3 }));
+    expect(renderCount).toBe(2); // did re-render
   });
 });

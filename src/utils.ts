@@ -1,4 +1,9 @@
-import { createProxy, isChanged } from 'proxy-compare';
+import {
+  createProxy,
+  getUntracked,
+  isChanged,
+  markToTrack,
+} from 'proxy-compare';
 import { useMemo, useRef } from 'react';
 import {
   create,
@@ -40,16 +45,28 @@ function createComputerImplementation<T extends object>(
   return (creator) => {
     return (set, get, api) => {
       let affected = new WeakMap();
+      const proxyCache = new WeakMap();
+      const targetCache = new WeakMap();
+      const compareCache = new WeakMap();
 
       let proxyState: T;
 
       function runCompute(state: Partial<T>): Partial<T> {
         proxyState = { ...get(), ...state };
-        const nextAffected = new WeakMap();
-        const proxy = createProxy(proxyState, nextAffected);
+        affected = new WeakMap();
+        for (const key in proxyState) {
+          const value = proxyState[key];
+          if (typeof value === 'object' && value !== null)
+            markToTrack(value, false);
+        }
+        const proxy = createProxy(
+          proxyState,
+          affected,
+          proxyCache,
+          targetCache
+        );
         const computed = compute(proxy);
-        affected = nextAffected;
-        return computed;
+        return getUntracked(computed) ?? computed;
       }
 
       const setWithComputed: typeof set = (partial, replace) => {
@@ -62,7 +79,7 @@ function createComputerImplementation<T extends object>(
           proxyState,
           merged,
           affected,
-          new WeakMap(),
+          compareCache,
           Object.is
         );
         if (touched) {
@@ -87,28 +104,40 @@ function createComputerImplementation<T extends object>(
 
 function useTrackedSelector<T>(selector: (state: T) => unknown) {
   const affected = useRef(new WeakMap());
-  const prevState = useRef<T>();
-  const trackedValue = useRef<any>(undefined);
+  const proxyCache = useRef(new WeakMap());
+  const targetCache = useRef(new WeakMap());
+  const compareCache = useRef(new WeakMap());
 
   return useMemo(() => {
-    let firstRun = true;
+    let prevState: T | undefined = undefined;
+    let trackedValue: any = undefined;
     return (state: T) => {
       const touched = isChanged(
-        prevState.current,
+        prevState,
         state,
         affected.current,
-        new WeakMap(),
+        compareCache.current,
         Object.is
       );
-      if (touched || firstRun) {
-        firstRun = false;
-        prevState.current = state;
+      if (touched || !prevState) {
+        prevState = state;
         affected.current = new WeakMap();
-        const proxy = createProxy(state, affected.current);
-        trackedValue.current = selector(proxy);
+        for (const key in state) {
+          const value = state[key];
+          if (typeof value === 'object' && value !== null)
+            markToTrack(value, false);
+        }
+        const proxy = createProxy(
+          state,
+          affected.current,
+          proxyCache.current,
+          targetCache.current
+        );
+        const value = selector(proxy);
+        trackedValue = getUntracked(value) ?? value;
       }
 
-      return trackedValue.current;
+      return trackedValue;
     };
   }, [selector]);
 }

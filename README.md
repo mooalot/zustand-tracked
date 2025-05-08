@@ -50,6 +50,21 @@ function App() {
 | `useTrackedStoreWithEqualityFn` | A hook to access the store with tracked selectors and a custom equality function.               |
 | `createTrackedComputer`         | Create a tracked computer that can be used to compute derived state based on the store's state. |
 
+## Optimal Performance
+
+For optimal performance, it is best to use `createTrackedWithEqualityFn` or `useTrackedStoreWithEqualityFn` with `useCallback` for the selector. This ensures that the selector is only recomputed when its dependencies change.
+
+```typescript
+const value = useStore(
+  useCallback((state) => {
+    //...some expensive computation
+  }, []),
+  (a, b) => a === b
+);
+```
+
+Keep in mind that using `useCallback` is not always necessary, but it can help with performance in some cases. If you find that your selectors are being recomputed too often or are very complex, consider using `useCallback` to memoize them.
+
 ## More Examples
 
 See more examples on [Github](https://github.com/mooalot/zustand-tracked/tree/main/examples/global)
