@@ -16,12 +16,11 @@ export default defineConfig({
       fileName: (format) => `index.${format}.js`, // Output file naming pattern
     },
     rollupOptions: {
-      external: ['react', 'zustand', 'zod'],
+      external: ['react', 'zustand'],
       output: {
         globals: {
           react: 'React',
           zustand: 'Zustand',
-          zod: 'Zod',
         },
       },
     },
