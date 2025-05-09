@@ -1,6 +1,6 @@
 {
   "name": "zustand-tracked",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": "Gabriel Saunders",
   "repository": {
     "type": "git",
@@ -23,8 +23,8 @@
   "keywords": [
     "react",
     "zustand",
-    "form",
-    "forms"
+    "tracked",
+    "performance"
   ],
   "scripts": {
     "dev": "vite",
