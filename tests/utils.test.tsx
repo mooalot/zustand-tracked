@@ -160,6 +160,94 @@ describe('createTrackedComputer', () => {
     expect(doubleRender).toBe(2); // did not re-render
     expect(computeCount).toBe(2); // did not re-compute
   });
+
+  it('respects replace=true semantics when updating state', () => {
+    type ReplaceState = {
+      count: number;
+      keep: number;
+      double?: number;
+    };
+
+    const computer = createTrackedComputer<ReplaceState>((s) => ({
+      double: s.count * 2,
+    }));
+
+    const store = createStore<ReplaceState>()(
+      computer(() => ({
+        count: 0,
+        keep: 1,
+        double: 0,
+      }))
+    );
+
+    act(() => {
+      store.setState({ count: 3 } as ReplaceState, true);
+    });
+
+    const next = store.getState();
+    expect(next.count).toBe(3);
+    expect(next.double).toBe(6);
+    expect('keep' in next).toBe(false);
+  });
+
+  it('removes stale computed keys when compute no longer returns them', () => {
+    type ToggleComputedState = {
+      count: number;
+      include: boolean;
+      maybe?: number;
+      setInclude: (value: boolean) => void;
+    };
+
+    const computer = createTrackedComputer<ToggleComputedState>((s) =>
+      s.include ? { maybe: s.count } : {}
+    );
+
+    const store = createStore<ToggleComputedState>()(
+      computer((set) => ({
+        count: 2,
+        include: true,
+        maybe: 2,
+        setInclude: (value) => set({ include: value }),
+      }))
+    );
+
+    expect('maybe' in store.getState()).toBe(true);
+
+    act(() => {
+      store.getState().setInclude(false);
+    });
+
+    expect('maybe' in store.getState()).toBe(false);
+  });
+
+  it('keeps computed values on replace=true when tracked deps did not change', () => {
+    type ReplaceUntouchedState = {
+      count: number;
+      text: string;
+      double?: number;
+    };
+
+    const computer = createTrackedComputer<ReplaceUntouchedState>((s) => ({
+      double: s.count * 2,
+    }));
+
+    const store = createStore<ReplaceUntouchedState>()(
+      computer(() => ({
+        count: 2,
+        text: 'a',
+        double: 4,
+      }))
+    );
+
+    act(() => {
+      store.setState({ count: 2, text: 'b' } as ReplaceUntouchedState, true);
+    });
+
+    const next = store.getState();
+    expect(next.text).toBe('b');
+    expect(next.double).toBe(4);
+    expect(next.count).toBe(2);
+  });
 });
 
 describe('useTrackedStore', () => {

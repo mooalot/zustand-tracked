@@ -50,9 +50,10 @@ function createComputerImplementation<T extends object>(
       const compareCache = new WeakMap();
 
       let proxyState: T;
+      let previousComputed: Partial<T> = {};
 
-      function runCompute(state: Partial<T>): Partial<T> {
-        proxyState = { ...get(), ...state };
+      function runCompute(state: T): Partial<T> {
+        proxyState = state;
         affected = new WeakMap();
         for (const key in proxyState) {
           const value = proxyState[key];
@@ -73,7 +74,7 @@ function createComputerImplementation<T extends object>(
         const nextPartial =
           typeof partial === 'function' ? partial(get()) : partial;
 
-        const merged = { ...get(), ...nextPartial };
+        const merged = { ...(replace ? {} : get()), ...nextPartial } as T;
 
         const touched = isChanged(
           proxyState,
@@ -84,10 +85,32 @@ function createComputerImplementation<T extends object>(
         );
         if (touched) {
           const computed = runCompute(merged);
-          const withComputed = { ...nextPartial, ...computed };
-          set(withComputed, replace as false);
+          const staleComputedKeys = Object.keys(previousComputed);
+          previousComputed = computed;
+
+          if (replace) {
+            const replacedState = { ...nextPartial, ...computed } as T;
+            set(replacedState, true);
+            return;
+          }
+
+          const nextState = { ...get(), ...nextPartial, ...computed } as T;
+          for (const key of staleComputedKeys) {
+            if (!(key in computed) && !(key in nextPartial)) {
+              delete (nextState as Record<string, unknown>)[key];
+            }
+          }
+          set(nextState, true);
         } else {
-          set(nextPartial, replace as false);
+          if (replace) {
+            const replacedState = {
+              ...nextPartial,
+              ...previousComputed,
+            } as T;
+            set(replacedState, true);
+            return;
+          }
+          set(nextPartial, false);
         }
       };
 
@@ -97,6 +120,7 @@ function createComputerImplementation<T extends object>(
 
       const initialState = creator(setWithComputed, get, api);
       const initialComputed = runCompute(initialState);
+      previousComputed = initialComputed;
       return { ...initialState, ...initialComputed };
     };
   };
